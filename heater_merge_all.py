@@ -61,7 +61,7 @@ def whole_merge(path):
            list_.append(df)
         output = pd.concat(list_)
         list_big.append(output)
-    dataframe=pd.concat(list_big,join="inner")
+    dataframe=pd.concat(list_big,axis=1,join="inner")
     return(dataframe)
 
 
