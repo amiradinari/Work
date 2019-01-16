@@ -9,9 +9,54 @@ from sklearn import mixture
 import pandas as pd
 import scipy
 import spm1d
+import warnings
 from scipy import stats
+from __future__ import division, print_function, absolute_import
+
+import warnings
+from collections import namedtuple
+from numpy import array, asarray, ma
+from scipy._lib.six import callable, string_types
+from scipy._lib._version import NumpyVersion
+from scipy._lib._util import _lazywhere
+import scipy.special as special
+from . import distributions
+from . import mstats_basic
+from ._stats_mstats_common import _find_repeats, linregress, theilslopes, siegelslopes
+from ._stats import _kendall_dis, _toint64, _weightedrankedtau
+from ._rvs_sampling import rvs_ratio_uniforms
+
 path="C:/Users/adineri/Desktop/GMM_test.txt"
 df = pd.read_csv(path,sep=", ",header = None)
+
+
+def _contains_nan(a, nan_policy='propagate'):
+    policies = ['propagate', 'raise', 'omit']
+    if nan_policy not in policies:
+        raise ValueError("nan_policy must be one of {%s}" %
+                         ', '.join("'%s'" % s for s in policies))
+    try:
+        # Calling np.sum to avoid creating a huge array into memory
+        # e.g. np.isnan(a).any()
+        with np.errstate(invalid='ignore'):
+            contains_nan = np.isnan(np.sum(a))
+    except TypeError:
+        # If the check cannot be properly performed we fallback to omitting
+        # nan values and raising a warning. This can happen when attempting to
+        # sum things that are not numbers (e.g. as in the function `mode`).
+        contains_nan = False
+        nan_policy = 'omit'
+        warnings.warn("The input array could not be properly checked for nan "
+                      "values. nan values will be ignored.", RuntimeWarning)
+
+    if contains_nan and nan_policy == 'raise':
+        raise ValueError("The input contains nan values")
+
+    return (contains_nan, nan_policy)
+
+
+
+KendalltauResult = namedtuple('KendalltauResult', ('correlation', 'pvalue'))
 
 def kendalltau_costum(x, cov_0, initial_lexsort=None, nan_policy='propagate', method='auto'):
     """
@@ -89,7 +134,7 @@ def kendalltau_costum(x, cov_0, initial_lexsort=None, nan_policy='propagate', me
 
     if x.shape[1]* x.shape[1] != cov_0.shape[0]* cov_0.shape[1]:
         raise ValueError("All inputs to `kendalltau` must be of the same size, "
-                        "found x-size %s and y-size %s" % (x.size, y.size))
+                        "found x-size %s and y-size %s" % (x.size, cov_0.size))
 #    elif not x.size or not y.size:
 #        return KendalltauResult(np.nan, np.nan)  # Return NaN if arrays are empty
 
@@ -105,7 +150,7 @@ def kendalltau_costum(x, cov_0, initial_lexsort=None, nan_policy='propagate', me
 
     elif contains_nan and nan_policy == 'omit':
         x = ma.masked_invalid(x)
-        y = ma.masked_invalid(y)
+        y = ma.masked_invalid(cov_0)
         return mstats_basic.kendalltau(x, y, method=method)
 
     if initial_lexsort is not None:  # deprecate to drop!
@@ -113,7 +158,7 @@ def kendalltau_costum(x, cov_0, initial_lexsort=None, nan_policy='propagate', me
         
         
     tri_lower_diag = np.linalg.cholesky(cov_0)  
-    yi=np.matmul(linalg.inv(tri_lower_diag),x)
+    yi=np.matmul(lin.inv(tri_lower_diag),x)
     S_y=np.cov(yi)
     I=np.identity(x.shape[0])
     W=(1/x.shape[0])(np.matmul(S_y-I,S_y-I)).trace()-(x.shape[1]/x.shape[0])(S_y.trace()/x.shape[1])*(S_y.trace()/x.shape[1])+(x.shape[1]/x.shape[0])
@@ -121,7 +166,7 @@ def kendalltau_costum(x, cov_0, initial_lexsort=None, nan_policy='propagate', me
     chi,p_value=test
     return(p_value)
     
-def mean_hist(X_hist):
+def parameters_hist(X_hist):
      lowest_bic = np.infty
      bic = []
      n_components_range = range(1, 10)
@@ -135,25 +180,25 @@ def mean_hist(X_hist):
             if bic[-1] < lowest_bic:
                 lowest_bic = bic[-1]
                 best_gmm = gmm
-     means=best_gmm._get_parameters()[1]
-     return(means)
+     param=best_gmm._get_parameters()
+     return(param)
   
-def cov_hist(X_hist):
-     lowest_bic = np.infty
-     bic = []
-     n_components_range = range(1, 10)
-     cv_types = 'full'
-     for n_components in n_components_range:
-        # Fit a Gaussian mixture with EM
-             gmm = mixture.GaussianMixture(n_components=n_components,
-                                      covariance_type=cv_types)
-             gmm.fit(X_hist)
-             bic.append(gmm.bic(X_hist))
-             if bic[-1] < lowest_bic:
-              lowest_bic = bic[-1]
-              best_gmm = gmm
-     cov=best_gmm._get_parameters()[2]
-     return(cov)
+#def cov_hist(X_hist):
+#     lowest_bic = np.infty
+#     bic = []
+#     n_components_range = range(1, 10)
+#     cv_types = 'full'
+#     for n_components in n_components_range:
+#        # Fit a Gaussian mixture with EM
+#             gmm = mixture.GaussianMixture(n_components=n_components,
+#                                      covariance_type=cv_types)
+#             gmm.fit(X_hist)
+#             bic.append(gmm.bic(X_hist))
+#             if bic[-1] < lowest_bic:
+#              lowest_bic = bic[-1]
+#              best_gmm = gmm
+#     cov=best_gmm._get_parameters()[2]
+#     return(cov)
   
 def estimate_ka(X):
 
@@ -189,8 +234,8 @@ def test(X_hist,X_stream):
        kg=estimate_ka(X_hist)
        for i in range(0,ka):
           for j in range(0,kg):
-             if (kendalltau_costum(labled_stream(X_stream)[i],cov_hist(X_hist)[j])>0.05):
-                T2=spm1d.stats.hotellings(mean_hist(X_hist)[j],labled_stream(X_stream)[i]) 
+             if (kendalltau_costum(labled_stream(X_stream)[i],parameters_hist(X_hist)[2][j])>0.05):
+                T2=spm1d.stats.hotellings(parameters_hist(X_hist)[1][j],labled_stream(X_stream)[i]) 
                 if (T2.inference(0.05).h0reject==False):
                     index_ka=i
                     index_kg=j
@@ -229,7 +274,7 @@ class Online_GMM:
                 best_gmm = gmm
               
      p=best_gmm.predict_proba(X)
-     return(p )
+     return(p)
 ###gives updates historical data  
    
                     
@@ -244,6 +289,3 @@ class Online_GMM:
       self.updated_X_hist=self.remained_X_hist.append(result)
       self.updated_X_hist=self.updated_X_hist.append(pd.DataFrame(self.remained_X_stream))
       return(self.updated_X_hist)
-
-
-    
