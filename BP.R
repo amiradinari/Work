@@ -1,3 +1,4 @@
+
 #==========================================================================================
 #===========================30 min data ===================================================
 #==========================================================================================
@@ -1143,4 +1144,90 @@ new_data$Description_UOM_Tag=Date_joined1
 names(new_data)[1]="Date"
 MergeContr_Add$Date=as.character( MergeContr_Add$Date)
 lab_data$Date=as.character(lab_data$Date)
-joined_all=join( MergeContr_Add,lab_data,type="inner")
+joined_all=join( MergeContr_Add_process,correct_lab,type="inner")
+
+
+
+
+
+
+
+
+
+#'misc'
+# C:\Users\Administrator\Desktop\BP IKA Do Not Delete\30min data with clusters\1minchlorideswcuster
+kept_data <- read_excel("C:/Users/Administrator/Desktop/BP IKA Do Not Delete/30min data with clusters/1minchlorideswcuster/lab_with_process_kept_lab.xlsx")
+names(kept_data)
+
+
+kept_data [,303]  = NULL
+kept_data [,268]  = NULL
+kept_data [,266]  = NULL
+kept_data [,265]  = NULL
+kept_data [,263]  = NULL
+kept_data [,262]  = NULL
+kept_data [,261]  = NULL
+kept_data [,260]  = NULL
+kept_data [,259]  = NULL
+kept_data [,103]  = NULL
+kept_data [,99]  = NULL
+kept_data [,90]  = NULL
+kept_data [,88]  = NULL
+kept_data [,83]  = NULL
+kept_data [,70]  = NULL
+kept_data [,44]  = NULL
+kept_data [,43]  = NULL
+kept_data [,42]  = NULL
+kept_data [,41]  = NULL
+kept_data [,40]  = NULL
+
+
+
+kept_data [,301]  = NULL
+kept_data [,299]  = NULL
+kept_data [,258]  = NULL
+kept_data [,257]  = NULL
+
+
+write.xlsx(kept_data,"C:/Users/Administrator/Desktop/BP IKA Do Not Delete/30min data with clusters/1minchlorideswcuster/lab_with_process_kept_lab_IKA20190116.xlsx")
+
+
+nrow(MergeContr_Add_process)
+####merging correctly _lab _with_process
+syn_date=seq(ISOdate(2017,12,1), ISOdate(2018,4,9), "min")
+syn_data=matrix(nrow = 185761, ncol = 2)
+syn_data=as.data.frame(syn_data)
+syn_data$V1=syn_date
+syn_data$V1=as.character(syn_data$V1)
+syn_data$V2=as.POSIXct(syn_data$V1,format ="%Y-%m-%d")
+syn_data$V2=as.character(syn_data$V2)
+names(syn_data)=c("Date per minute" ,"Date")
+syn_data$Description=syn_data$`Date per minute`
+syn_data$`Date per minute`=NULL
+correct_lab=as.data.frame(matrix(nrow=185761,ncol=206))
+for (j in 1:65)
+{
+for (i in 1:nrow(correct_lab))
+{
+if(lab_data$Date[j]==syn_data$Date[i])
+{correct_lab[i,]=lab_data[j,]}
+}
+  }
+names(correct_lab)=names(lab_data)
+correct_lab$date_per_minute=syn_data$Description
+joined_all=join( MergeContr_Add_process,correct_lab,type="inner")
+correct_lab$Date=syn_data$Date
+correct_lab$Date[108915]
+i=which(correct_lab$Date==" ")
+names(joined_all)
+
+
+###Replacing empty with unknown
+merge_out_back=merging_out
+final=read.xlsx("C:/Users/Administrator/Desktop/BP IKA Do Not Delete/30min data with clusters/1minchlorideswcuster/Finetuned_final_version.xlsx")
+
+for ( i in 1:ncol(final))
+{if (any(is.na(final[,i]))==TRUE)
+{final[which(is.na(final[,i])),i]="unknown"}}
+
+any(is.na(final))
