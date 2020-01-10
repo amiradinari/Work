@@ -1,0 +1,117 @@
+version: '2' 
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:1.1.0-hadoop2.8-java8
+    container_name: namenode
+    volumes:
+      - ./data/namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    ports:
+      - 50070:50070
+  datanode:
+    image: bde2020/hadoop-datanode:1.1.0-hadoop2.8-java8
+    depends_on: 
+      - namenode
+    volumes:
+      - ./data/datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+    ports:
+      - 50075:50075
+  spark-master:
+    image: bde2020/spark-master:2.1.0-hadoop2.8-hive-java8
+    container_name: spark-master
+    ports:
+      - 8080:8080
+      - 7077:7077
+    env_file:
+      - ./hadoop.env
+  spark-worker:
+    image: bde2020/spark-worker:2.1.0-hadoop2.8-hive-java8
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    ports:
+      - 8081:8081
+    env_file:
+      - ./hadoop.env
+  spark-notebook:
+    image: bde2020/spark-notebook:2.1.0-hadoop2.8-hive
+    container_name: spark-notebook
+    env_file:
+      - ./hadoop.env
+    ports:
+      - 9001:9001
+  hue:
+    image: bde2020/hdfs-filebrowser:3.11
+    ports:
+      - 8088:8088
+    environment:
+      - NAMENODE_HOST=namenode
+  mysql:
+    image: mysql
+    container_name: mysql
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+
+  postgres:
+    image: postgres
+    container_name: postgres
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+
+  zookeeper:
+    image: stratio/zookeeper:3.4.6
+    container_name: zookeeper
+    ports:
+      - 2181:2181
+
+  waitzk:
+    image: aanand/wait
+    container_name: waitzk
+    links:
+        - zookeeper
+
+  kafka:
+    image: stratio/kafka:0.8.2.1
+    container_name: kafka
+    ports:
+      - 9092:9092
+    links:
+      - waitzk
+      - zookeeper
+    environment:
+      ZOOKEEPER_HOSTS: zookeeper:2181
+
+  waitkafka:
+    image: aanand/wait
+    container_name: waitkafka
+    links:
+      - kafka
+
+  sqoop-server:
+    image: stratio/sqoop-server:latest
+    container_name: sqoopserver
+    ports:
+      - 8080:8080
+    links:
+      - zookeeper
+      - mysql
+      - kafka
+      - waitkafka
+      - postgres
+
+  sqoop-shell:
+    image: stratio/sqoop-shell:latest
+    container_name: sqoopshell
+    links:
+      - sqoop-server
